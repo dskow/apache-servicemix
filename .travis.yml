@@ -24,9 +24,9 @@ before_install:
 
 script:
   - sudo service docker restart ; sleep 10 # workaround for https://github.com/travis-ci/travis-ci/issues/4778
-  - docker run --name servicemix -p 127.0.0.1:3030:3030 -d apache-servicemix
+  - docker run --name servicemix -p 127.0.0.1:8101:8101 -d apache-servicemix
   - sleep 8
   - docker logs servicemix
   - docker logs servicemix | grep --quiet "list of available commands"
   - docker logs servicemix | grep --quiet started
-  - curl http://127.0.0.1:8101/ | grep --quiet "S"
+  - curl http://127.0.0.1:8101/ | grep --quiet "Unsupported protocol version"
