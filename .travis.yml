@@ -29,4 +29,4 @@ script:
   - docker logs servicemix
   - docker logs servicemix | grep --quiet "list of available commands"
   - docker logs servicemix | grep --quiet started
-  - curl http://127.0.0.1:8101/ | grep --quiet "Unsupported protocol version"
+ # - curl http://127.0.0.1:8101/ | grep --quiet "Unsupported protocol version"
