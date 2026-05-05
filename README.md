@@ -1,164 +1,130 @@
-# Apache Servicemix docker image
+# Apache ServiceMix Docker image
+
+[![build](https://github.com/dskow/apache-servicemix/actions/workflows/build.yml/badge.svg)](https://github.com/dskow/apache-servicemix/actions/workflows/build.yml)
 
 * Docker image: [dskow/apache-servicemix](https://hub.docker.com/r/dskow/apache-servicemix/)
-* Base images:  [centos](https://hub.docker.com/_/centos/):centos7
-* Source: [Dockerfile](https://github.com/dskow/apache-servicemix/Dockerfile), [Apache Servicemix](http://servicemix.apache.org/downloads.html)
+* Base image: [eclipse-temurin:8-jre-jammy](https://hub.docker.com/_/eclipse-temurin)
+* Source: [Dockerfile](Dockerfile), [Apache ServiceMix downloads](https://archive.apache.org/dist/servicemix/)
 
-[![Build Status](https://travis-ci.org/dskow/apache-servicemix.svg)](https://travis-ci.org/dskow/apache-servicemix)
-
-[![](https://images.microbadger.com/badges/image/dskow/apache-servicemix.svg)](https://microbadger.com/images/dskow/apache-servicemix "Get your own image badge on microbadger.com")
-
-[![](https://images.microbadger.com/badges/version/dskow/apache-servicemix.svg)](https://microbadger.com/images/dskow/apache-servicemix "Get your own version badge on microbadger.com")
-
-This version of Servicemix comes with pre-configured modules and bug fixes not in the original load.
+> **Project status — upstream is retired.** Apache ServiceMix moved to the
+> [Apache Attic](https://attic.apache.org/projects/servicemix.html) in 2020. No
+> new releases are coming, and the bundled ActiveMQ / Camel / CXF / Karaf
+> versions in 7.0.1 (2016) carry known CVEs. This image exists for users still
+> running legacy ServiceMix workloads in containers; do not use it as the
+> integration backbone of a new system.
 
 This is a [Docker](https://www.docker.com/) image for running
-[Apache Servicemix](http://servicemix.apache.org/documentation.html),
-which is an integration container that unifies the features and functionality of [ActiveMQ](http://activemq.apache.org/), [Camel](http://camel.apache.org/documentation.html), [CXF](http://cxf.apache.org/docs/index.html), and [Karaf](http://karaf.apache.org/documentation.html) into a powerful runtime platform.
-
-Feel free to contact the [servicemix users
-list](https://servicemix.apache.org/community/mailing-lists.html) for any questions on using
-Servicemix.
+[Apache ServiceMix](https://servicemix.apache.org/), an integration container
+that combines [ActiveMQ](http://activemq.apache.org/),
+[Camel](http://camel.apache.org/), [CXF](http://cxf.apache.org/), and
+[Karaf](http://karaf.apache.org/) into a single OSGi runtime.
 
 ## License
 
 Different licenses apply to files added by different Docker layers:
 
-* dskow/apache-servicemix [Dockerfile](https://github.com/dskow/apache-servicemix): [Apache License, version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
-* Apache Servicemix (`/apache-servicemix` in the image): [Apache License, version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
-
-* OpenJDK (/opt/jdk1.8.0_131 in the image): GPL 2.0 with Classpath exception
-
-* CentOS Linux 7 (rest of /): Free software (GPL and other licenses)
+* `dskow/apache-servicemix` [Dockerfile](Dockerfile): [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+* Apache ServiceMix (in `/opt/servicemix`): [Apache License 2.0](http://www.apache.org/licenses/LICENSE-2.0)
+* Eclipse Temurin OpenJDK 8 (in `/opt/java/openjdk`): GPL 2.0 with Classpath exception
+* Ubuntu 22.04 base (rest of `/`): assorted free-software licenses
 
 ## Use
 
-To try out this image, try:
+To start the container with the Karaf SSH console exposed:
 
-    docker run -p 8101:8081 dskow/apache-servicemix
+    docker run -p 8101:8101 dskow/apache-servicemix
 
-The Apache Servicemix should then be available at http://localhost:8081/
+To expose every port the image declares:
 
-To expose Servicemix on a different ports, simply modify first part of `-p`: 
+    docker run \
+        -p 1099:1099 \
+        -p 8101:8101 \
+        -p 8181:8181 \
+        -p 61616:61616 \
+        -p 44444:44444 \
+        dskow/apache-servicemix
 
-    docker run -p 1099:8080 -p 8101:8081 -p 8181:8082 -p 61616:8083 -p 36888:8084 -p 44444:8085 dskow/apache-servicemix
+| Port  | Purpose                                 |
+| ----- | --------------------------------------- |
+| 1099  | JMX RMI registry                        |
+| 8101  | Karaf SSH console                       |
+| 8181  | HTTP (when the `webconsole` feature is installed) |
+| 61616 | ActiveMQ broker (OpenWire)              |
+| 44444 | JMX RMI server                          |
 
-To see the automatically generated admin password, see the output from above, or
-use `docker logs` with the name of your container.
-
-Note that the password is only generated on the first run, e.g. when the
-volume `/servicemix` is an empty directory.
-
-You can override the admin-password using the form
-`-e ADMIN_PASSWORD=pw123`:
+A random admin password is generated on first start and printed to the
+container logs. Use `docker logs <container>` to retrieve it. To set the
+password explicitly:
 
     docker run -e ADMIN_PASSWORD=pw123 dskow/apache-servicemix
 
-To specify Java settings such as the amount of memory to allocate for the
-heap (default: 1200 MiB), set the `JVM_ARGS` environment with `-e`:
+To tune the JVM (default heap is whatever Karaf's `setenv` configures):
 
     docker run -e JVM_ARGS=-Xmx2g dskow/apache-servicemix
 
-
 ## Data persistence
 
-Servicemix's data is stored in the Docker volume `/servicemix` within the container.
-Note that unless you use `docker restart` or one of the mechanisms below, data
-is lost between each run of the apache-servicemix image.
+ServiceMix writes runtime state (the deploy directory, broker journals, Karaf
+data) inside the image. Without a volume, that state is lost when the
+container is removed.
 
-To store the data in a named Docker volume container `servicemix-data`
-(recommended), create it first as:
+Mount a host directory or named volume at `/deploy` for hot-deployable
+bundles:
 
-    docker run --name servicemix-data -v /servicemix busybox
+    docker run -d --name servicemix \
+        -v servicemix-deploy:/deploy \
+        dskow/apache-servicemix
 
-Then start servicemix using `--volumes-from`. This allows you to later upgrade the
-apache-servicemix docker image without losing the data. The command below also uses
-`-d` to start the container in the background.
-
-    docker run -d --name servicemix --volumes-from servicemix-data dskow/apache-servicemix
-
-If you want to store servicemix data in a specified location on the host (e.g. for
-disk space or speed requirements), specify it using `-v`:
-
-    docker run -d --name servicemix -v /ssd/data/servicemix:/servicemix dskow/apache-servicemix
-
-Note that the `/servicemix` volume must only be accessed from a single Servicemix
-container at a time.
-
-To check the logs for the container you gave `--name servicemix`, use:
+To check container logs:
 
     docker logs servicemix
 
-To stop the named container, use:
+To stop:
 
     docker stop servicemix
 
-.. or press Ctrl-C.
-
-To restart a named container (it will remember the volume and port config)
-
-    docker restart servicemix
-
-## Upgrading Servicemix
-
-If you want to upgrade the Servicemix container named `servicemix` which use the data
-volume `servicemix-data` as recommended above, do:
+## Upgrading
 
     docker pull dskow/apache-servicemix
     docker stop servicemix
     docker rm servicemix
-    docker run -d --name servicemix --volumes-from servicemix-data dskow/apache-servicemix
+    docker run -d --name servicemix -v servicemix-deploy:/deploy dskow/apache-servicemix
 
-## Install web console
+## Installing the web console
 
-The default config of servicemix does not come with web console feature. To install it you need to ssh as karak:karak on port 8101
+The image does not ship the `webconsole` feature pre-installed. To add it,
+SSH into the running Karaf shell as `karaf:karaf` (or with the admin password
+you set) on port 8101:
 
-add to ~/.ssh/config
-	
-	host servicemix
-		Hostname <ip of servicemix>
-		Port 8101
-		User karaf
-		Compression yes
-		ForwardX11 yes
+Add to `~/.ssh/config`:
 
-	ssh servicemix
-	karaf@root>feature:install webconsole
-	karaf@root>logout
+    host servicemix
+        Hostname <ip of servicemix>
+        Port 8101
+        User karaf
+        Compression yes
 
+Then:
 
-The web console is on http://<hostname>:8181/system/console
+    ssh servicemix
+    karaf@root> feature:install webconsole
+    karaf@root> logout
 
-## Data loading
+The web console will be available at `http://<host>:8181/system/console`.
 
-TBD
+## Routing with Camel
 
-## Recognizing the routes in Servicemix
+See the upstream [Routing with Camel quickstart](https://servicemix.apache.org/docs/5.x/quickstart/camel.html)
+for route configuration. Routes deployed to `/deploy` are picked up
+automatically by the Felix file-install bundle.
 
-See [Routing with Camel](http://servicemix.apache.org/docs/5.x/quickstart/camel.html) for routing info.
+## Customizing the configuration
 
-If you loaded into an existing container, Servicemix should find the route after
-(re)starting with the same route volume (see [Data
-persistence](#Data_persistence) above):
+To inspect the running container's filesystem:
 
-    docker restart servicemix
+    docker exec -it servicemix bash
 
-If you created a brand new container, then in Servicemix go to *Manage routes*,
-click **Add new route**, tick **Persistent** and provide the route name
-exactly as provided to `loadroute.sh`, e.g. `chembl19`.
-
-Now go to *Route*, select from the dropdown menu, and try out *Info* and *Query*.
-
-**Tip**: It is possible to load a new dataset into the volume of a
-running Servicemix server, as long as you don't "create" it in Servicemix before
-`loadroute.sh` has finished.
-
-## Customizing Servicemix configuration
-
-If you need to modify Servicemix's configuration further, you can use the equivalent of:
-
-    docker run --volumes-from servicemix-data -it ubuntu bash
-
-and inspect `/servicemix` with the shell. Remember to restart servicemix afterwards:
+Configuration files live in `/opt/servicemix/etc/`. Restart the container
+after changes:
 
     docker restart servicemix

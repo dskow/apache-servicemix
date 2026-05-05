@@ -1,0 +1,34 @@
+name: build
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t apache-servicemix .
+
+      - name: Smoke test
+        run: |
+          docker run --name servicemix -d -p 127.0.0.1:8101:8101 apache-servicemix
+          for i in $(seq 1 60); do
+            if docker logs servicemix 2>&1 | grep -q "list of available commands"; then
+              echo "ServiceMix started"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "ServiceMix failed to start within 120s"
+          docker logs servicemix
+          exit 1
+
+      - name: Container logs
+        if: always()
+        run: docker logs servicemix || true

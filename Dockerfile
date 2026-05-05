@@ -5,7 +5,7 @@
 #   (the "License"); you may not use this file except in compliance with
 #   the License.  You may obtain a copy of the License at
 #
-#       http://www.apache.org/licenses/LICENSE-2.0 
+#       http://www.apache.org/licenses/LICENSE-2.0
 #
 #   Unless required by applicable law or agreed to in writing, software
 #   distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,53 +13,49 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-FROM centos:centos7
-RUN yum install -y epel-release && yum install -y wget bash sed pwgen unzip && yum clean all
-RUN cd /opt/ && wget --no-cookies --no-check-certificate --header "Cookie: gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=accept-securebackup-cookie" "http://download.oracle.com/otn-pub/java/jdk/8u131-b11/d54c1d3a095b4ff2b6607d096fa80163/jdk-8u131-linux-x64.tar.gz" && tar xzf jdk-8u131-linux-x64.tar.gz && rm -rf jdk-8u131-linux-x64.tar.gz
+# Apache ServiceMix 7.0.1 ships with Karaf 4.0.x, which targets Java 8.
+# Eclipse Temurin provides maintained OpenJDK 8 builds (via Adoptium) on a
+# current Ubuntu base, replacing the unreachable Oracle JDK download and the
+# end-of-life CentOS 7 image used previously.
+FROM eclipse-temurin:8-jre-jammy
 
-MAINTAINER David Skowronski <david@dskow.com>
+LABEL maintainer="David Skowronski <david@dskow.com>"
 
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends wget pwgen unzip ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
-# Update below according to https://jena.apache.org/download/
-ENV SERVICEMIX_SHA1 4854243f6b1aaf3c9ff7c08183c769ab6878b285
-ENV SERVICEMIX_VERSION_MAJOR=7
-ENV SERVICEMIX_VERSION_MINOR=0
-ENV SERVICEMIX_VERSION_PATCH=1
-ENV SERVICEMIX_VERSION=${SERVICEMIX_VERSION_MAJOR}.${SERVICEMIX_VERSION_MINOR}.${SERVICEMIX_VERSION_PATCH}
-ENV SERVICEMIX_MIRROR http://www-us.apache.org/dist/
-ENV SERVICEMIX_ARCHIVE http://archive.apache.org/dist/ 
-ENV JAVA_HOME /opt/jdk1.8.0_131
-#
-
-# Config and data
-ENV SERVICEMIX_BASE /opt/servicemix
-
-# Installation folder
-ENV SERVICEMIX_HOME /apache-servicemix
+ENV SERVICEMIX_VERSION=7.0.1
+ENV SERVICEMIX_SHA1=4854243f6b1aaf3c9ff7c08183c769ab6878b285
+ENV SERVICEMIX_ARCHIVE=https://archive.apache.org/dist/servicemix
+ENV SERVICEMIX_BASE=/opt/servicemix
+ENV SERVICEMIX_HOME=/apache-servicemix
 
 WORKDIR /tmp
-# sha1 checksum
-RUN echo "$SERVICEMIX_SHA1  servicemix.zip" > servicemix.zip.sha1
-# Download/check/unpack/move in one go (to reduce image size)
-RUN wget -O servicemix.zip ${SERVICEMIX_MIRROR}/servicemix/servicemix-${SERVICEMIX_VERSION_MAJOR}/${SERVICEMIX_VERSION}/apache-servicemix-${SERVICEMIX_VERSION}.zip || \
-	wget -O servicemix.zip ${SERVICEMIX_ARCHIVE}/servicemix/servicemix-${SERVICEMIX_VERSION_MAJOR}/${SERVICEMIX_VERSION}/apache-servicemix-${SERVICEMIX_VERSION}.zip && \
-	sha1sum -c servicemix.zip.sha1 && \
-	unzip -d /opt servicemix.zip && \
-    rm -f servicemix.zip && \
-    ln -s /opt/apache-servicemix-${SERVICEMIX_VERSION} /opt/servicemix && \
-	sed -i 's/^\(felix\.fileinstall\.dir\s*=\s*\).*$/\1\/deploy/' /opt/servicemix/etc/org.apache.felix.fileinstall-deploy.cfg && \
-    mkdir /deploy
+RUN wget -O servicemix.zip \
+        "${SERVICEMIX_ARCHIVE}/servicemix-7/${SERVICEMIX_VERSION}/apache-servicemix-${SERVICEMIX_VERSION}.zip" \
+ && echo "${SERVICEMIX_SHA1}  servicemix.zip" | sha1sum -c - \
+ && unzip -d /opt servicemix.zip \
+ && rm -f servicemix.zip \
+ && ln -s /opt/apache-servicemix-${SERVICEMIX_VERSION} /opt/servicemix \
+ && sed -i 's/^\(felix\.fileinstall\.dir\s*=\s*\).*$/\1\/deploy/' \
+        /opt/servicemix/etc/org.apache.felix.fileinstall-deploy.cfg \
+ && mkdir /deploy
 
 # As "localhost" is often inaccessible within Docker container,
 # we'll enable basic-auth with a random admin password
-# (which we'll generate on start-up)
+# (which we'll generate on start-up via the entrypoint).
 COPY shiro.ini /apache-servicemix/shiro.ini
 COPY docker-entrypoint.sh /
 RUN chmod 755 /docker-entrypoint.sh
 
 VOLUME ["/deploy"]
 
-# Where we start our server from
 WORKDIR /opt/servicemix
+# 1099   JMX RMI registry
+# 8101   Karaf SSH console
+# 8181   HTTP (when webconsole feature is installed)
+# 61616  ActiveMQ broker
+# 44444  JMX RMI server
 EXPOSE 1099 8101 8181 61616 44444
 ENTRYPOINT ["/docker-entrypoint.sh"]
