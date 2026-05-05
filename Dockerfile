@@ -17,7 +17,7 @@
 # Eclipse Temurin provides maintained OpenJDK 8 builds (via Adoptium) on a
 # current Ubuntu base, replacing the unreachable Oracle JDK download and the
 # end-of-life CentOS 7 image used previously.
-FROM eclipse-temurin:8-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 
 LABEL maintainer="David Skowronski <david@dskow.com>"
 
